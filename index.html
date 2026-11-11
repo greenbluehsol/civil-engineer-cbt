@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>토목기사 필기 5개년 기출문제 & 상세 해설집 (응용역학 · 철근콘크리트 및 강구조)</title>
+  <!-- Pretendard & JetBrains Mono Fonts -->
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <!-- KaTeX for Mathematical Formulas -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Top App Header -->
+  <header class="app-header">
+    <div class="header-left">
+      <button id="sidebarToggle" class="icon-btn mobile-only" aria-label="메뉴 열기">☰</button>
+      <div class="brand">
+        <span class="brand-badge">CIVIL ENGINEER CBT</span>
+        <h1>토목기사 5개년 핵심과목 기출·해설집</h1>
+        <p class="brand-sub">1과목 응용역학(1~20번) · 4과목 철근콘크리트 및 강구조(61~80번) | 전자문제집 CBT 기반 총 14회차 560문항</p>
+      </div>
+    </div>
+    <div class="header-stats">
+      <div class="stat-pill">
+        <span class="stat-label">수록 문항</span>
+        <strong id="statTotal">560문항</strong>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-label">풀이 완료</span>
+        <strong id="statSolved">0</strong>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-label">정답률</span>
+        <strong id="statAccuracy">0%</strong>
+      </div>
+      <div class="stat-pill bookmark-pill" id="filterBookmarkBtn" title="북마크한 문제만 보기">
+        <span class="stat-label">★ 오답/북마크</span>
+        <strong id="statBookmarked">0</strong>
+      </div>
+    </div>
+  </header>
+
+  <div class="app-layout">
+    <!-- Left Sidebar: 5-Year Sessions -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-title-row">
+          <h2>기출 회차 선택 (5개년)</h2>
+          <span class="badge-count">14회차</span>
+        </div>
+        <div id="sessionList" class="session-list">
+          <!-- Populated by app.js -->
+        </div>
+      </div>
+
+      <div class="sidebar-section pdf-download-box" id="pdfDownloadBox">
+        <h3>원본 시험지 PDF</h3>
+        <p class="pdf-desc">현재 선택된 회차의 전자문제집 CBT 원본 PDF 파일입니다.</p>
+        <div class="pdf-btns">
+          <a id="studentPdfLink" href="#" target="_blank" class="pdf-btn student">📄 학생용 PDF (문제만)</a>
+          <a id="teacherPdfLink" href="#" target="_blank" class="pdf-btn teacher">✅ 교사용 PDF (정답표시)</a>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Sticky Control & Filter Toolbar -->
+      <section class="toolbar">
+        <div class="toolbar-top">
+          <div class="current-session-info">
+            <h2 id="currentSessionTitle">2022년 2회 (2022.04.24)</h2>
+            <span id="currentQuestionCount" class="q-count-badge">40문항</span>
+          </div>
+
+          <!-- Study Mode Switcher -->
+          <div class="mode-switch" role="group" aria-label="학습 모드 전환">
+            <button class="mode-btn active" data-mode="study" id="modeStudyBtn">
+              📖 해설 학습 모드 <small>(정답·해설 펼침)</small>
+            </button>
+            <button class="mode-btn" data-mode="quiz" id="modeQuizBtn">
+              ✍️ 실전 CBT 풀이 모드 <small>(직접 풀고 채점)</small>
+            </button>
+          </div>
+        </div>
+
+        <div class="toolbar-bottom">
+          <!-- Subject Tabs -->
+          <div class="subject-tabs">
+            <button class="subj-tab active" data-subject="all">전체 (40문항)</button>
+            <button class="subj-tab" data-subject="응용역학">📐 1과목: 응용역학 (1~20번)</button>
+            <button class="subj-tab" data-subject="철근콘크리트 및 강구조">🏗️ 4과목: 철근콘크리트 및 강구조 (61~80번)</button>
+            <button class="subj-tab" data-subject="wrong" id="tabWrongOnly">❌ 틀린 문제</button>
+            <button class="subj-tab" data-subject="bookmarked" id="tabBookmarkOnly">⭐ 북마크</button>
+          </div>
+
+          <!-- Search & Display Options -->
+          <div class="search-and-opts">
+            <div class="search-box">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="searchInput" placeholder="문항 번호, 키워드(예: 트러스, 처짐, 균형철근비) 검색..." />
+              <button id="searchAllSessionsBtn" class="search-scope-btn" title="전체 14회차(560문항)에서 통합 검색">전회차 통합검색</button>
+            </div>
+            <label class="toggle-opt" title="원본 시험지 도면/문제 스캔 이미지 표시">
+              <input type="checkbox" id="toggleOrigImage" checked />
+              <span>원본 도면/문제 이미지 표시</span>
+            </label>
+            <button id="resetSessionQuizBtn" class="secondary-btn" title="현재 회차 풀이 기록 초기화">🔄 다시 풀기</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Score Banner (Shown in Quiz Mode) -->
+      <section class="score-banner hidden" id="scoreBanner">
+        <div class="score-cards">
+          <div class="score-card">
+            <span>응용역학 (1~20번)</span>
+            <strong id="scoreSubj1">- / 20 (-점)</strong>
+          </div>
+          <div class="score-card">
+            <span>철근콘크리트 및 강구조 (61~80번)</span>
+            <strong id="scoreSubj4">- / 20 (-점)</strong>
+          </div>
+          <div class="score-card highlight">
+            <span>평균 점수 / 판정</span>
+            <strong id="scoreTotalAvg">풀이 진행 중</strong>
+          </div>
+        </div>
+        <div class="score-actions">
+          <button id="gradeAllBtn" class="primary-btn pulse-btn">📝 답안 제출 및 전체 채점하기</button>
+        </div>
+      </section>
+
+      <!-- Questions Container -->
+      <div id="questionsContainer" class="questions-container">
+        <!-- Rendered by app.js -->
+      </div>
+    </main>
+
+    <!-- Right OMR / Quick Jump Panel -->
+    <aside class="omr-panel">
+      <div class="omr-card">
+        <div class="omr-header">
+          <h3>문항 빠른 이동 & OMR</h3>
+          <span class="omr-legend">
+            <i class="dot correct"></i>정답
+            <i class="dot wrong"></i>오답
+            <i class="dot bookmarked"></i>★
+          </span>
+        </div>
+
+        <div class="omr-group">
+          <h4>1과목 : 응용역학 (1~20)</h4>
+          <div id="omrGrid1" class="omr-grid"></div>
+        </div>
+
+        <div class="omr-group">
+          <h4>4과목 : 철근콘크리트·강구조 (61~80)</h4>
+          <div id="omrGrid4" class="omr-grid"></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Image Lightbox Modal -->
+  <div id="imageModal" class="image-modal hidden">
+    <div class="modal-backdrop" id="modalBackdrop"></div>
+    <div class="modal-content">
+      <button class="modal-close" id="modalCloseBtn">✕ 닫기</button>
+      <img id="modalImg" src="" alt="문제 확대 이미지" />
+    </div>
+  </div>
+
+  <!-- Mobile Bottom OMR Sheet -->
+  <div id="mobileOmrSheet" class="mobile-omr-sheet">
+    <div class="mobile-omr-backdrop" id="mobileOmrBackdrop"></div>
+    <div class="mobile-omr-content">
+      <div class="mobile-omr-header">
+        <h3>📱 OMR 답안지 & 빠른 이동</h3>
+        <button class="close-omr-btn" id="closeMobileOmrBtn">✕</button>
+      </div>
+      <div class="omr-legend" style="margin-bottom:12px;">
+        <i class="dot correct"></i>정답
+        <i class="dot wrong"></i>오답
+        <i class="dot selected"></i>선택
+        <i class="dot bookmarked"></i>★
+      </div>
+      <div class="omr-group">
+        <h4>1과목 : 응용역학 (1~20)</h4>
+        <div id="mobileOmrGrid1" class="omr-grid"></div>
+      </div>
+      <div class="omr-group" style="margin-top:14px;">
+        <h4>4과목 : 철근콘크리트·강구조 (61~80)</h4>
+        <div id="mobileOmrGrid4" class="omr-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Bottom Floating Action Bar -->
+  <nav class="mobile-bottom-bar" id="mobileBottomBar">
+    <button class="mobile-bar-btn" id="mBtnSidebar">
+      <span class="icon">📚</span>
+      <span>회차선택</span>
+    </button>
+    <button class="mobile-bar-btn" id="mBtnMode">
+      <span class="icon">✍️</span>
+      <span id="mBtnModeText">CBT 모드</span>
+    </button>
+    <button class="mobile-bar-btn" id="mBtnOmr">
+      <span class="icon">📋</span>
+      <span>OMR 카드</span>
+    </button>
+    <button class="mobile-bar-btn" id="mBtnTop">
+      <span class="icon">⬆️</span>
+      <span>맨 위로</span>
+    </button>
+  </nav>
+
+  <!-- Load bundled data first (works even on file://), then app.js -->
+  <script src="data/exams_bundle.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
