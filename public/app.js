@@ -11,8 +11,59 @@
   let searchAllSessions = false;
   let showOrigImage = true;
 
-  // User state: { "2022_2_1": 4, ... }
-  let userAnswers = loadJson(STORAGE_KEY_ANSWERS, {});
+  let isRandomSession = false;
+  let randomSessionTitle = "";
+  let randomExamQuestions = [];
+
+  function generateRandomExam(type) {
+    // type: "both" (20 subj1 + 20 subj4), "subj1" (20 subj1), "subj4" (20 subj4)
+    let poolSubj1 = [];
+    let poolSubj4 = [];
+
+    sessionsList.forEach((s) => {
+      const qs = examsData[s.id]?.questions || [];
+      qs.forEach((q) => {
+        if (q.qnum <= 20) poolSubj1.push(q);
+        else poolSubj4.push(q);
+      });
+    });
+
+    // Shuffle helper
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    let selected = [];
+    if (type === "both") {
+      const pick1 = shuffle(poolSubj1).slice(0, 20);
+      const pick4 = shuffle(poolSubj4).slice(0, 20);
+      selected = [...pick1, ...pick4];
+      randomSessionTitle = `🎲 5개년 실전 랜덤 모의고사 (40문항)`;
+    } else if (type === "subj1") {
+      selected = shuffle(poolSubj1).slice(0, 20);
+      randomSessionTitle = `📐 응용역학 5개년 집중 랜덤 (20문항)`;
+    } else if (type === "subj4") {
+      selected = shuffle(poolSubj4).slice(0, 20);
+      randomSessionTitle = `🏗️ 철근콘크리트·강구조 5개년 집중 랜덤 (20문항)`;
+    }
+
+    isRandomSession = true;
+    currentSessionId = `random_${Date.now()}`;
+    randomExamQuestions = selected;
+    sessionGraded[currentSessionId] = false;
+
+    // Switch to quiz mode by default for random practice
+    setMode("quiz");
+    document.getElementById("sidebar").classList.remove("open");
+    renderSidebar();
+    renderAll();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
   // Bookmarks: { "2022_2_1": true, ... }
   let userBookmarks = loadJson(STORAGE_KEY_BOOKMARKS, {});
   // Whether quiz has been submitted/graded for a session: { "2022_2": true }
@@ -154,9 +205,9 @@
 
     document.getElementById("resetSessionQuizBtn").addEventListener("click", () => {
       if (!confirm("현재 회차의 풀이 기록을 초기화하시겠습니까?")) return;
-      const qs = examsData[currentSessionId]?.questions || [];
-      qs.forEach((q) => {
-        delete userAnswers[qKey(currentSessionId, q.qnum)];
+      const curQs = isRandomSession ? randomExamQuestions : (examsData[currentSessionId]?.questions || []);
+      curQs.forEach((q) => {
+        delete userAnswers[qKey(q.session_id, q.qnum)];
       });
       delete sessionGraded[currentSessionId];
       saveJson(STORAGE_KEY_ANSWERS, userAnswers);
@@ -164,8 +215,8 @@
     });
 
     document.getElementById("gradeAllBtn").addEventListener("click", () => {
-      const curQs = examsData[currentSessionId]?.questions || [];
-      const solvedInCur = curQs.filter((q) => userAnswers[qKey(currentSessionId, q.qnum)]).length;
+      const curQs = isRandomSession ? randomExamQuestions : (examsData[currentSessionId]?.questions || []);
+      const solvedInCur = curQs.filter((q) => userAnswers[qKey(q.session_id, q.qnum)]).length;
       
       if (!sessionGraded[currentSessionId]) {
         if (solvedInCur < curQs.length) {
@@ -187,6 +238,17 @@
       document.getElementById("tabBookmarkOnly").classList.add("active");
       currentSubject = "bookmarked";
       renderQuestionsAndOmr();
+    });
+
+    // Random Exam Buttons
+    document.getElementById("btnRandomBoth").addEventListener("click", () => {
+      generateRandomExam("both");
+    });
+    document.getElementById("btnRandomSubj1").addEventListener("click", () => {
+      generateRandomExam("subj1");
+    });
+    document.getElementById("btnRandomSubj4").addEventListener("click", () => {
+      generateRandomExam("subj4");
     });
 
     // Modal close
@@ -286,6 +348,7 @@
             <span class="session-date">${s.date}</span>
           `;
           btn.addEventListener("click", () => {
+            isRandomSession = false;
             currentSessionId = s.id;
             searchAllSessions = false;
             document.getElementById("searchAllSessionsBtn").classList.remove("active");
@@ -301,6 +364,12 @@
   }
 
   function updatePdfLinks() {
+    const pdfBox = document.getElementById("pdfDownloadBox");
+    if (isRandomSession) {
+      if (pdfBox) pdfBox.style.display = "none";
+      return;
+    }
+    if (pdfBox) pdfBox.style.display = "block";
     const s = examsData[currentSessionId]?.session;
     if (!s) return;
     document.getElementById("studentPdfLink").href = `pdfs/${s.id}_student.pdf`;
@@ -309,7 +378,9 @@
 
   function getFilteredQuestions() {
     let pool = [];
-    if (searchAllSessions || (currentSubject === "bookmarked" && searchAllSessions)) {
+    if (isRandomSession) {
+      pool = randomExamQuestions;
+    } else if (searchAllSessions || (currentSubject === "bookmarked" && searchAllSessions)) {
       sessionsList.forEach((s) => {
         const qs = examsData[s.id]?.questions || [];
         pool = pool.concat(qs);
@@ -369,29 +440,35 @@
     document.getElementById("statBookmarked").textContent = `${bookmarkedCount}`;
 
     // Also update current session quiz banner
-    const curQs = examsData[currentSessionId]?.questions || [];
+    const curQs = isRandomSession ? randomExamQuestions : (examsData[currentSessionId]?.questions || []);
     const isGraded = currentMode === "study" || !!sessionGraded[currentSessionId];
-    const solvedInCur = curQs.filter((q) => userAnswers[qKey(currentSessionId, q.qnum)]).length;
+    const solvedInCur = curQs.filter((q) => userAnswers[qKey(q.session_id, q.qnum)]).length;
 
     let c1 = 0, c4 = 0;
+    let totalSubj1 = 0, totalSubj4 = 0;
     curQs.forEach((q) => {
-      const uAns = userAnswers[qKey(currentSessionId, q.qnum)];
+      const uAns = userAnswers[qKey(q.session_id, q.qnum)];
+      if (q.qnum <= 20) totalSubj1++;
+      else totalSubj4++;
       if (uAns === q.answer) {
         if (q.qnum <= 20) c1++;
         else c4++;
       }
     });
-    const s1Score = c1 * 5;
-    const s4Score = c4 * 5;
-    const avgScore = (s1Score + s4Score) / 2;
+
+    const s1Score = totalSubj1 > 0 ? (c1 / totalSubj1) * 100 : 0;
+    const s4Score = totalSubj4 > 0 ? (c4 / totalSubj4) * 100 : 0;
+    const avgScore = (totalSubj1 > 0 && totalSubj4 > 0)
+      ? (s1Score + s4Score) / 2
+      : (totalSubj1 > 0 ? s1Score : s4Score);
 
     const gradeBtn = document.getElementById("gradeAllBtn");
 
     if (isGraded) {
-      document.getElementById("scoreSubj1").textContent = `${c1} / 20 (${s1Score}점)`;
-      document.getElementById("scoreSubj4").textContent = `${c4} / 20 (${s4Score}점)`;
+      document.getElementById("scoreSubj1").textContent = totalSubj1 > 0 ? `${c1} / ${totalSubj1} (${s1Score.toFixed(0)}점)` : "해당없음";
+      document.getElementById("scoreSubj4").textContent = totalSubj4 > 0 ? `${c4} / ${totalSubj4} (${s4Score.toFixed(0)}점)` : "해당없음";
       let statusText = "합격 🎉";
-      if (s1Score < 40 || s4Score < 40) statusText = "과락 탈락 ⚠️ (40점 미만)";
+      if ((totalSubj1 > 0 && s1Score < 40) || (totalSubj4 > 0 && s4Score < 40)) statusText = "과락 탈락 ⚠️ (40점 미만)";
       else if (avgScore < 60) statusText = "불합격 (평균 60점 미만)";
       document.getElementById("scoreTotalAvg").textContent = `${avgScore.toFixed(1)}점 (${statusText})`;
       if (gradeBtn) {
@@ -399,8 +476,8 @@
         gradeBtn.classList.remove("pulse-btn");
       }
     } else {
-      document.getElementById("scoreSubj1").textContent = `답안 마킹: ${curQs.slice(0, 20).filter(q => userAnswers[qKey(currentSessionId, q.qnum)]).length} / 20`;
-      document.getElementById("scoreSubj4").textContent = `답안 마킹: ${curQs.slice(20, 40).filter(q => userAnswers[qKey(currentSessionId, q.qnum)]).length} / 20`;
+      document.getElementById("scoreSubj1").textContent = totalSubj1 > 0 ? `답안 마킹: ${curQs.filter(q => q.qnum <= 20 && userAnswers[qKey(q.session_id, q.qnum)]).length} / ${totalSubj1}` : "해당없음";
+      document.getElementById("scoreSubj4").textContent = totalSubj4 > 0 ? `답안 마킹: ${curQs.filter(q => q.qnum > 20 && userAnswers[qKey(q.session_id, q.qnum)]).length} / ${totalSubj4}` : "해당없음";
       document.getElementById("scoreTotalAvg").textContent = `풀이 진행 중 (${solvedInCur}/${curQs.length} 완료)`;
       if (gradeBtn) {
         gradeBtn.textContent = `📝 답안 제출 및 전체 채점하기 (${solvedInCur}/${curQs.length})`;
@@ -410,11 +487,15 @@
   }
 
   function renderAll() {
-    const s = examsData[currentSessionId]?.session;
-    if (s) {
-      document.getElementById("currentSessionTitle").textContent = searchAllSessions
-        ? "전회차 통합 검색 결과 (2018~2022년)"
-        : `토목기사 ${s.title}`;
+    if (isRandomSession) {
+      document.getElementById("currentSessionTitle").textContent = randomSessionTitle;
+    } else {
+      const s = examsData[currentSessionId]?.session;
+      if (s) {
+        document.getElementById("currentSessionTitle").textContent = searchAllSessions
+          ? "전회차 통합 검색 결과 (2018~2022년)"
+          : `토목기사 ${s.title}`;
+      }
     }
     renderQuestionsAndOmr();
     updateGlobalStats();
@@ -425,8 +506,16 @@
     const filtered = getFilteredQuestions();
     document.getElementById("currentQuestionCount").textContent = `${filtered.length}문항`;
 
-    const s = examsData[currentSessionId]?.session;
-    if (s) {
+    if (isRandomSession) {
+      document.getElementById("currentSessionTitle").textContent = `${randomSessionTitle} (${filtered.length}문항)`;
+    } else {
+      const s = examsData[currentSessionId]?.session;
+      if (s) {
+        document.getElementById("currentSessionTitle").textContent = searchAllSessions
+          ? `전회차 통합 검색 (${filtered.length}문항)`
+          : `토목기사 ${s.title}`;
+      }
+    }
       document.getElementById("currentSessionTitle").textContent = searchAllSessions
         ? `전회차 통합 검색 (${filtered.length}문항)`
         : `토목기사 ${s.title}`;
@@ -599,11 +688,11 @@
     grid1.innerHTML = "";
     grid4.innerHTML = "";
 
-    const curQs = examsData[currentSessionId]?.questions || [];
+    const curQs = isRandomSession ? randomExamQuestions : (examsData[currentSessionId]?.questions || []);
     const isGraded = currentMode === "study" || !!sessionGraded[currentSessionId];
 
-    curQs.forEach((q) => {
-      const key = qKey(currentSessionId, q.qnum);
+    curQs.forEach((q, idx) => {
+      const key = qKey(q.session_id, q.qnum);
       const uAns = userAnswers[key];
       const isBm = !!userBookmarks[key];
 
@@ -618,22 +707,22 @@
       }
       if (isBm) cls += " bookmarked";
       btn.className = cls;
-      btn.textContent = q.qnum;
-      btn.title = uAns ? `${q.qnum}번 (선택: ${uAns}번)` : `${q.qnum}번 문항으로 이동`;
+      // In random mode, show sequential number (1..20, 21..40) or original qnum
+      btn.textContent = isRandomSession ? (idx + 1) : q.qnum;
+      btn.title = `${q.qnum}번 (${q.session_id}) 문항으로 이동`;
 
       btn.addEventListener("click", () => {
-        const target = document.getElementById(`qcard-${currentSessionId}-${q.qnum}`);
+        const target = document.getElementById(`qcard-${q.session_id}-${q.qnum}`);
         if (target) {
           target.scrollIntoView({ behavior: "smooth", block: "start" });
         } else {
-          // Reset filter to 'all' if hidden
           currentSubject = "all";
           document.querySelectorAll(".subj-tab").forEach((b) => {
             b.classList.toggle("active", b.dataset.subject === "all");
           });
           renderQuestionsAndOmr();
           setTimeout(() => {
-            const el = document.getElementById(`qcard-${currentSessionId}-${q.qnum}`);
+            const el = document.getElementById(`qcard-${q.session_id}-${q.qnum}`);
             if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
           }, 50);
         }
@@ -653,11 +742,11 @@
     grid1.innerHTML = "";
     grid4.innerHTML = "";
 
-    const curQs = examsData[currentSessionId]?.questions || [];
+    const curQs = isRandomSession ? randomExamQuestions : (examsData[currentSessionId]?.questions || []);
     const isGraded = currentMode === "study" || !!sessionGraded[currentSessionId];
 
-    curQs.forEach((q) => {
-      const key = qKey(currentSessionId, q.qnum);
+    curQs.forEach((q, idx) => {
+      const key = qKey(q.session_id, q.qnum);
       const uAns = userAnswers[key];
       const isBm = !!userBookmarks[key];
 
@@ -672,11 +761,11 @@
       }
       if (isBm) cls += " bookmarked";
       btn.className = cls;
-      btn.textContent = q.qnum;
+      btn.textContent = isRandomSession ? (idx + 1) : q.qnum;
 
       btn.addEventListener("click", () => {
         closeMobileOmr();
-        const target = document.getElementById(`qcard-${currentSessionId}-${q.qnum}`);
+        const target = document.getElementById(`qcard-${q.session_id}-${q.qnum}`);
         if (target) {
           target.scrollIntoView({ behavior: "smooth", block: "start" });
         } else {
@@ -686,7 +775,7 @@
           });
           renderQuestionsAndOmr();
           setTimeout(() => {
-            const el = document.getElementById(`qcard-${currentSessionId}-${q.qnum}`);
+            const el = document.getElementById(`qcard-${q.session_id}-${q.qnum}`);
             if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
           }, 50);
         }
