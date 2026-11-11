@@ -1,0 +1,14 @@
+# Dependencies & Environment
+__pycache__/
+*.pyc
+*.pyo
+.env
+.venv/
+env/
+venv/
+
+# Scratch & Raw Scraping Dumps
+data/posts/
+data/sessions_raw/
+*.html.tmp
+*.log
