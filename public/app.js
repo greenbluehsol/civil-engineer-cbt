@@ -516,10 +516,6 @@
           : `토목기사 ${s.title}`;
       }
     }
-      document.getElementById("currentSessionTitle").textContent = searchAllSessions
-        ? `전회차 통합 검색 (${filtered.length}문항)`
-        : `토목기사 ${s.title}`;
-    }
 
     container.innerHTML = "";
 
